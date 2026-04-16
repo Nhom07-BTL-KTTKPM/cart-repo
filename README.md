@@ -1,0 +1,1 @@
+redis + jpa + openfeign
