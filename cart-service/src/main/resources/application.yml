@@ -1,3 +1,37 @@
 spring:
+  config:
+    import: optional:file:.env[.properties]
   application:
     name: cart-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/cart_db}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    open-in-view: false
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+      timeout: ${SPRING_DATA_REDIS_TIMEOUT:2s}
+
+server:
+  port: ${SERVER_PORT:8084}
+
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: ${EUREKA_DEFAULT_ZONE:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+
+auth:
+  jwt:
+    issuer: ${AUTH_JWT_ISSUER:auth-service}
+    secret: ${AUTH_JWT_SECRET:NUQyuZhoBd6u6O6dAP30Rgu5bqv5TdzpKreGhZGExSaHXEQIM3kicw9uptSaJP9Q}
