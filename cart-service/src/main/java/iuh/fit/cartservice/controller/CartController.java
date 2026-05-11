@@ -67,4 +67,9 @@ public class CartController {
         cartService.clearCart(customerId);
         return ResponseEntity.noContent().build();
     }
+
+    @PostMapping("/{customerId}/backup")
+    public ResponseEntity<CartResponse> backupCart(@PathVariable String customerId) {
+        return ResponseEntity.ok(cartService.backupCartFromCache(customerId));
+    }
 }
