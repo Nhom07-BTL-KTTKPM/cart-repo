@@ -2,11 +2,13 @@ package iuh.fit.cartservice.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import iuh.fit.cartservice.client.CatalogServiceClient;
 import iuh.fit.cartservice.client.UserServiceClient;
 import iuh.fit.cartservice.dto.AddCartItemRequest;
 import iuh.fit.cartservice.dto.CartItemResponse;
 import iuh.fit.cartservice.dto.CartResponse;
 import iuh.fit.cartservice.dto.CustomerResponse;
+import iuh.fit.cartservice.dto.ProductVariantResponse;
 import iuh.fit.cartservice.dto.UpdateCartItemRequest;
 import iuh.fit.cartservice.entity.CartEntity;
 import iuh.fit.cartservice.entity.CartItemEntity;
@@ -33,15 +35,18 @@ public class CartService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final UserServiceClient userServiceClient;
+    private final CatalogServiceClient catalogServiceClient;
 
     public CartService(CartRepository cartRepository,
                        StringRedisTemplate redisTemplate,
                        ObjectMapper objectMapper,
-                       UserServiceClient userServiceClient) {
+                       UserServiceClient userServiceClient,
+                       CatalogServiceClient catalogServiceClient) {
         this.cartRepository = cartRepository;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.userServiceClient = userServiceClient;
+        this.catalogServiceClient = catalogServiceClient;
     }
 
     @Transactional
@@ -61,19 +66,12 @@ public class CartService {
             return new CartOperationResult(response, false);
         }
 
-        CartResponse created = new CartResponse(
-                UUID.randomUUID(),
-                customerUuid,
-                LocalDateTime.now(),
-                Collections.emptyList()
-        );
-
         CartEntity entity = new CartEntity();
-        entity.setId(created.id());
-        entity.setCustomerId(created.customerId());
-        entity.setUpdatedAt(created.updatedAt());
-        cartRepository.save(entity);
+        entity.setCustomerId(customerUuid);
+        entity.setUpdatedAt(LocalDateTime.now());
+        CartEntity saved = cartRepository.save(entity);
 
+        CartResponse created = mapToResponse(saved);
         writeToCache(redisKey, created);
         return new CartOperationResult(created, true);
     }
@@ -83,19 +81,34 @@ public class CartService {
         UUID customerUuid = parseCustomerId(customerId);
         validateAddItemRequest(request);
 
+        ProductVariantResponse variant = catalogServiceClient.getVariantById(request.productVariantId());
+        if (variant == null || variant.id() == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Product variant not found");
+        }
+        if (Boolean.FALSE.equals(variant.isActive())) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Product variant is inactive");
+        }
+        if (variant.stockQuantity() != null && request.quantity() > variant.stockQuantity()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Insufficient stock for product variant");
+        }
+        if (variant.price() == null) {
+            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR, "Product variant price missing");
+        }
+        BigDecimal unitPrice = variant.price();
+
         CartEntity cart = cartRepository.findByCustomerId(customerUuid)
                 .orElseGet(() -> createCartEntity(customerUuid));
 
         CartItemEntity existing = findItemByVariant(cart, request.productVariantId());
         if (existing != null) {
             existing.setQuantity(existing.getQuantity() + request.quantity());
-            existing.setUnitPrice(request.unitPrice());
+            existing.setUnitPrice(unitPrice);
         } else {
             CartItemEntity item = new CartItemEntity();
             item.setCart(cart);
             item.setProductVariantId(request.productVariantId());
             item.setQuantity(request.quantity());
-            item.setUnitPrice(request.unitPrice());
+            item.setUnitPrice(unitPrice);
             item.setAddedAt(LocalDateTime.now());
             cart.getItems().add(item);
         }
@@ -340,10 +353,6 @@ public class CartService {
         }
         if (request.quantity() == null || request.quantity() <= 0) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "quantity must be greater than 0");
-        }
-        BigDecimal price = request.unitPrice();
-        if (price == null || price.signum() < 0) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "unitPrice must be non-negative");
         }
     }
 
