@@ -182,6 +182,28 @@ public class CartService {
     }
 
     @Transactional
+    public CartResponse backupCartFromCache(String customerId) {
+        UUID customerUuid = parseCustomerId(customerId);
+        String redisKey = buildCartKey(customerUuid);
+
+        CartResponse cached = readFromCache(redisKey);
+        if (cached == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Cart not found in cache");
+        }
+
+        CartEntity cart = cartRepository.findByCustomerId(customerUuid)
+                .orElseGet(() -> createCartEntity(customerUuid));
+
+        cart.setUpdatedAt(cached.updatedAt());
+        syncCartItems(cart, cached.items());
+
+        CartEntity saved = cartRepository.save(cart);
+        CartResponse response = mapToResponse(saved);
+        writeToCache(redisKey, response);
+        return response;
+    }
+
+    @Transactional
     public void clearCart(String customerId) {
         UUID customerUuid = parseCustomerId(customerId);
         String redisKey = buildCartKey(customerUuid);
@@ -287,6 +309,26 @@ public class CartService {
                 .filter(item -> itemId.equals(item.getId()))
                 .findFirst()
                 .orElse(null);
+    }
+
+    private void syncCartItems(CartEntity cart, List<CartItemResponse> items) {
+        List<CartItemEntity> target = cart.getItems();
+        target.clear();
+
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+
+        for (CartItemResponse item : items) {
+            CartItemEntity entity = new CartItemEntity();
+            entity.setId(item.id());
+            entity.setCart(cart);
+            entity.setProductVariantId(item.productVariantId());
+            entity.setQuantity(item.quantity());
+            entity.setUnitPrice(item.unitPrice());
+            entity.setAddedAt(item.addedAt());
+            target.add(entity);
+        }
     }
 
     private void validateAddItemRequest(AddCartItemRequest request) {
