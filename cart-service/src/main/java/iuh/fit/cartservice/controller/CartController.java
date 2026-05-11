@@ -32,6 +32,11 @@ public class CartController {
         return ResponseEntity.ok(cartService.getCart(customerId));
     }
 
+    @GetMapping("/account/{accountId}")
+    public ResponseEntity<CartResponse> getCartByAccount(@PathVariable String accountId) {
+        return ResponseEntity.ok(cartService.getCartByAccountId(accountId));
+    }
+
     @PostMapping("/{customerId}/items")
     public ResponseEntity<CartResponse> addItem(
             @PathVariable String customerId,
@@ -55,5 +60,11 @@ public class CartController {
             @PathVariable String itemId
     ) {
         return ResponseEntity.ok(cartService.removeItem(customerId, itemId));
+    }
+
+    @DeleteMapping("/{customerId}")
+    public ResponseEntity<Void> clearCart(@PathVariable String customerId) {
+        cartService.clearCart(customerId);
+        return ResponseEntity.noContent().build();
     }
 }

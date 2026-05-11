@@ -2,9 +2,11 @@ package iuh.fit.cartservice.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import iuh.fit.cartservice.client.UserServiceClient;
 import iuh.fit.cartservice.dto.AddCartItemRequest;
 import iuh.fit.cartservice.dto.CartItemResponse;
 import iuh.fit.cartservice.dto.CartResponse;
+import iuh.fit.cartservice.dto.CustomerResponse;
 import iuh.fit.cartservice.dto.UpdateCartItemRequest;
 import iuh.fit.cartservice.entity.CartEntity;
 import iuh.fit.cartservice.entity.CartItemEntity;
@@ -30,13 +32,16 @@ public class CartService {
     private final CartRepository cartRepository;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final UserServiceClient userServiceClient;
 
     public CartService(CartRepository cartRepository,
                        StringRedisTemplate redisTemplate,
-                       ObjectMapper objectMapper) {
+                       ObjectMapper objectMapper,
+                       UserServiceClient userServiceClient) {
         this.cartRepository = cartRepository;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
+        this.userServiceClient = userServiceClient;
     }
 
     @Transactional
@@ -165,6 +170,33 @@ public class CartService {
         CartResponse response = mapToResponse(entity);
         writeToCache(redisKey, response);
         return response;
+    }
+
+    public CartResponse getCartByAccountId(String accountId) {
+        CustomerResponse customer = userServiceClient.getCustomerByAccountId(accountId);
+        if (customer == null || customer.id() == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Customer not found for account");
+        }
+
+        return getCart(customer.id().toString());
+    }
+
+    @Transactional
+    public void clearCart(String customerId) {
+        UUID customerUuid = parseCustomerId(customerId);
+        String redisKey = buildCartKey(customerUuid);
+        boolean hadCache = Boolean.TRUE.equals(redisTemplate.hasKey(redisKey));
+        boolean hadDb = cartRepository.findByCustomerId(customerUuid)
+                .map(cart -> {
+                    cartRepository.delete(cart);
+                    return true;
+                })
+                .orElse(false);
+        redisTemplate.delete(redisKey);
+
+        if (!hadCache && !hadDb) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Cart not found");
+        }
     }
 
     private UUID parseCustomerId(String customerId) {
