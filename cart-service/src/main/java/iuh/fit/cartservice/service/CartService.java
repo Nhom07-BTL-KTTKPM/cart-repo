@@ -13,6 +13,7 @@ import iuh.fit.cartservice.dto.UpdateCartItemRequest;
 import iuh.fit.cartservice.entity.CartEntity;
 import iuh.fit.cartservice.entity.CartItemEntity;
 import iuh.fit.cartservice.repo.CartRepository;
+import iuh.fit.shared.api.ApiResponse;
 import iuh.fit.shared.error.BusinessException;
 import iuh.fit.shared.error.ErrorCode;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -38,10 +39,10 @@ public class CartService {
     private final CatalogServiceClient catalogServiceClient;
 
     public CartService(CartRepository cartRepository,
-                       StringRedisTemplate redisTemplate,
-                       ObjectMapper objectMapper,
-                       UserServiceClient userServiceClient,
-                       CatalogServiceClient catalogServiceClient) {
+            StringRedisTemplate redisTemplate,
+            ObjectMapper objectMapper,
+            UserServiceClient userServiceClient,
+            CatalogServiceClient catalogServiceClient) {
         this.cartRepository = cartRepository;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
@@ -186,11 +187,13 @@ public class CartService {
     }
 
     public CartResponse getCartByAccountId(String accountId) {
-        CustomerResponse customer = userServiceClient.getCustomerByAccountId(accountId);
-        if (customer == null || customer.id() == null) {
+        ApiResponse<CustomerResponse> apiResponse = userServiceClient.getCustomerByAccountId(accountId);
+
+        if (apiResponse == null || apiResponse.data() == null) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Customer not found for account");
         }
 
+        CustomerResponse customer = apiResponse.data();
         return getCart(customer.id().toString());
     }
 
@@ -281,8 +284,7 @@ public class CartService {
                 entity.getId(),
                 entity.getCustomerId(),
                 entity.getUpdatedAt(),
-                items
-        );
+                items);
     }
 
     private CartItemResponse mapItem(CartItemEntity item) {
@@ -291,8 +293,7 @@ public class CartService {
                 item.getProductVariantId(),
                 item.getQuantity(),
                 item.getUnitPrice(),
-                item.getAddedAt()
-        );
+                item.getAddedAt());
     }
 
     private CartEntity createCartEntity(UUID customerId) {
