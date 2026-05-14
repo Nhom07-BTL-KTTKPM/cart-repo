@@ -62,6 +62,14 @@ public class CartController {
         return ResponseEntity.ok(cartService.removeItem(customerId, itemId));
     }
 
+    @DeleteMapping("/{customerId}/items/bulk")
+    public ResponseEntity<CartResponse> removeItems(
+            @PathVariable String customerId,
+            @RequestParam("itemIds") java.util.List<String> itemIds
+    ) {
+        return ResponseEntity.ok(cartService.removeItems(customerId, itemIds));
+    }
+
     @DeleteMapping("/{customerId}")
     public ResponseEntity<Void> clearCart(@PathVariable String customerId) {
         cartService.clearCart(customerId);

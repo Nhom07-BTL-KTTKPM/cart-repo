@@ -169,6 +169,31 @@ public class CartService {
         return response;
     }
 
+    @Transactional
+    public CartResponse removeItems(String customerId, List<String> itemIds) {
+        if (itemIds == null || itemIds.isEmpty()) {
+            return getCart(customerId);
+        }
+        
+        UUID customerUuid = parseCustomerId(customerId);
+        List<UUID> itemUuids = itemIds.stream()
+            .map(id -> parseUuid(id, "Invalid cart item id: " + id))
+            .toList();
+
+        CartEntity cart = cartRepository.findByCustomerId(customerUuid)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Cart not found"));
+
+        if (cart.getItems() != null) {
+            cart.getItems().removeIf(item -> itemUuids.contains(item.getId()));
+        }
+
+        cart.setUpdatedAt(LocalDateTime.now());
+        CartEntity saved = cartRepository.save(cart);
+        CartResponse response = mapToResponse(saved);
+        writeToCache(buildCartKey(customerUuid), response);
+        return response;
+    }
+
     public CartResponse getCart(String customerId) {
         UUID customerUuid = parseCustomerId(customerId);
         String redisKey = buildCartKey(customerUuid);
