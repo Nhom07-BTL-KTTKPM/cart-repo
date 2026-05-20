@@ -8,10 +8,12 @@ import iuh.fit.cartservice.service.CartOperationResult;
 import iuh.fit.cartservice.service.CartService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/carts")
+@PreAuthorize("hasRole('CUSTOMER')")
 public class CartController {
 
     private final CartService cartService;
