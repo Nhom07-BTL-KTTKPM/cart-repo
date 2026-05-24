@@ -195,31 +195,48 @@ public class CartService {
     }
 
     public CartResponse getCart(String customerId) {
-        UUID customerUuid = parseCustomerId(customerId);
-        String redisKey = buildCartKey(customerUuid);
+        try {
+            UUID customerUuid = parseCustomerId(customerId);
+            String redisKey = buildCartKey(customerUuid);
 
-        CartResponse cached = readFromCache(redisKey);
-        if (cached != null) {
-            return cached;
+            CartResponse cached = readFromCache(redisKey);
+            if (cached != null) {
+                return cached;
+            }
+
+            CartEntity entity = cartRepository.findByCustomerId(customerUuid)
+                    .orElseGet(() -> createCartEntity(customerUuid));
+
+            CartResponse response = mapToResponse(entity);
+            writeToCache(redisKey, response);
+            return response;
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "DEBUG ERROR: " + e.getClass().getName() + " - " + e.getMessage());
         }
-
-        CartEntity entity = cartRepository.findByCustomerId(customerUuid)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Cart not found"));
-
-        CartResponse response = mapToResponse(entity);
-        writeToCache(redisKey, response);
-        return response;
     }
 
     public CartResponse getCartByAccountId(String accountId) {
-        ApiResponse<CustomerResponse> apiResponse = userServiceClient.getCustomerByAccountId(accountId);
+        try {
+            ApiResponse<CustomerResponse> apiResponse;
+            try {
+                apiResponse = userServiceClient.getCustomerByAccountId(accountId);
+            } catch (feign.FeignException.NotFound e) {
+                throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Customer not found for account");
+            } catch (Exception ex) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "DEBUG FEIGN ERROR: " + ex.getClass().getName() + " - " + ex.getMessage());
+            }
 
-        if (apiResponse == null || apiResponse.data() == null) {
-            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Customer not found for account");
+            if (apiResponse == null || apiResponse.data() == null) {
+                throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Customer not found for account");
+            }
+
+            CustomerResponse customer = apiResponse.data();
+            return getCart(customer.id().toString());
+        } catch (BusinessException be) {
+            throw be;
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "DEBUG ACCOUNT ERROR: " + e.getClass().getName() + " - " + e.getMessage());
         }
-
-        CustomerResponse customer = apiResponse.data();
-        return getCart(customer.id().toString());
     }
 
     @Transactional
