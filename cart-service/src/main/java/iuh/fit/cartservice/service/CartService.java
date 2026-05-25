@@ -174,11 +174,11 @@ public class CartService {
         if (itemIds == null || itemIds.isEmpty()) {
             return getCart(customerId);
         }
-        
+
         UUID customerUuid = parseCustomerId(customerId);
         List<UUID> itemUuids = itemIds.stream()
-            .map(id -> parseUuid(id, "Invalid cart item id: " + id))
-            .toList();
+                .map(id -> parseUuid(id, "Invalid cart item id: " + id))
+                .toList();
 
         CartEntity cart = cartRepository.findByCustomerId(customerUuid)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Cart not found"));
@@ -211,7 +211,8 @@ public class CartService {
             writeToCache(redisKey, response);
             return response;
         } catch (Exception e) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "DEBUG ERROR: " + e.getClass().getName() + " - " + e.getMessage());
+            throw new BusinessException(ErrorCode.BAD_REQUEST,
+                    "DEBUG ERROR: " + e.getClass().getName() + " - " + e.getMessage());
         }
     }
 
@@ -223,7 +224,8 @@ public class CartService {
             } catch (feign.FeignException.NotFound e) {
                 throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Customer not found for account");
             } catch (Exception ex) {
-                throw new BusinessException(ErrorCode.BAD_REQUEST, "DEBUG FEIGN ERROR: " + ex.getClass().getName() + " - " + ex.getMessage());
+                throw new BusinessException(ErrorCode.BAD_REQUEST,
+                        "DEBUG FEIGN ERROR: " + ex.getClass().getName() + " - " + ex.getMessage());
             }
 
             if (apiResponse == null || apiResponse.data() == null) {
@@ -235,7 +237,8 @@ public class CartService {
         } catch (BusinessException be) {
             throw be;
         } catch (Exception e) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "DEBUG ACCOUNT ERROR: " + e.getClass().getName() + " - " + e.getMessage());
+            throw new BusinessException(ErrorCode.BAD_REQUEST,
+                    "DEBUG ACCOUNT ERROR: " + e.getClass().getName() + " - " + e.getMessage());
         }
     }
 
